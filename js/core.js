@@ -320,8 +320,20 @@ const Kc = (() => {
   let io;
   function observe(root = document) {
     if (!("IntersectionObserver" in window) || reduced) { $$(".reveal,.wipe,.zoom,.draw", root).forEach((e) => e.classList.add("in")); return; }
-    if (!io) io = new IntersectionObserver((entries) => entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } }), { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
-    $$(".reveal,.wipe,.zoom,.draw", root).forEach((e) => { if (!e.classList.contains("in")) io.observe(e); });
+    if (!io) io = new IntersectionObserver((entries) => entries.forEach((en) => {
+      if (!en.isIntersecting) return;
+      // a fully clipped element (the wipe) is never "visible" to the browser, so wipes are triggered by their parent
+      (en.target._wipes || [en.target]).forEach((e) => e.classList.add("in"));
+      io.unobserve(en.target);
+    }), { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+    $$(".reveal,.wipe,.zoom,.draw", root).forEach((e) => {
+      if (e.classList.contains("in")) return;
+      if (e.classList.contains("wipe")) {
+        const host = e.parentElement;
+        (host._wipes = host._wipes || []).push(e);
+        io.observe(host);
+      } else io.observe(e);
+    });
   }
 
   function parallax() {
