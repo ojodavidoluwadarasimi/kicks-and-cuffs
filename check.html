@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image check</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;padding:20px;background:#F6F3EE;color:#14130F}
+h1{font-size:26px;margin:0 0 6px} p{margin:0 0 16px;color:#4A463F}
+#sum{font-size:20px;font-weight:700;margin:12px 0 16px}
+ul{list-style:none;padding:0;margin:0} li{padding:10px 12px;margin-bottom:6px;border-radius:10px;background:#fff;display:flex;justify-content:space-between;gap:10px;font-size:15px;word-break:break-all}
+.ok b{color:#2F6B3F} .bad{background:#F6E2DA} .bad b{color:#C93B17}
+</style></head><body>
+<h1>Image check</h1><p>Tests every photo the shop needs in assets/img.</p>
+<div id="sum">Checking...</div><ul id="list"></ul>
+<script>
+var names = ["balogun-monk-angle","balogun-monk-detail","balogun-monk-side","court-low-angle","court-low-black","court-low-detail","court-low-side","hero","ikeja-high-angle","ikeja-high-detail","ikeja-high-side","ikoyi-derby-angle","ikoyi-derby-detail","ikoyi-derby-side","lagos-runner-angle","lagos-runner-detail","lagos-runner-side","lekki-loafer-angle","lekki-loafer-detail","lekki-loafer-side","lifestyle-office","lifestyle-street","marina-oxford-angle","marina-oxford-brown","marina-oxford-detail","marina-oxford-side","marina-oxford-tan","shoe-box","surulere-slip-angle","surulere-slip-detail","surulere-slip-side","tile-corporate","tile-sneakers"];
+var list = document.getElementById("list"), done = 0, bad = [];
+names.forEach(function (n) {
+  var li = document.createElement("li"); li.innerHTML = "<span>" + n + ".jpg</span><b>...</b>"; list.appendChild(li);
+  var img = new Image();
+  img.onload = function () { li.className = "ok"; li.lastChild.textContent = "OK"; fin(); };
+  img.onerror = function () { li.className = "bad"; li.lastChild.textContent = "MISSING"; bad.push(n); list.insertBefore(li, list.firstChild); fin(); };
+  img.src = "assets/img/" + n + ".jpg?t=" + Date.now();
+});
+function fin() {
+  done++;
+  if (done === names.length) document.getElementById("sum").textContent = bad.length ? bad.length + " of " + names.length + " photos are missing" : "All " + names.length + " photos found";
+}
+</script></body></html>
