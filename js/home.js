@@ -1,5 +1,5 @@
 /* Home page: size chooser and the "new this week" shoes. */
-document.addEventListener("DOMContentLoaded", () => {
+Kc.ready(() => {
   const { $, getSize, setSize, cardHTML, sizeChipsHTML, observe, P } = Kc;
 
   function draw() {

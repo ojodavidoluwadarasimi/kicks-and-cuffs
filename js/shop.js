@@ -1,5 +1,5 @@
 /* Shop page: filters by type and size, sort, and the saved list. */
-document.addEventListener("DOMContentLoaded", () => {
+Kc.ready(() => {
   const { $, P, getSize, setSize, stockOf, stockState, saved, cardHTML, sizeChipsHTML, observe, param, esc } = Kc;
 
   const state = {

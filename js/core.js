@@ -1,15 +1,18 @@
 /* ==========================================================
    KICKS & CUFFS  |  shared code
-   Storage, cart, orders, stock, header, footer and animations.
-   Everything is saved in this browser (localStorage) until the
-   server step is added.
+   Loads the shoes and settings from Supabase, plus the cart, header,
+   footer and animations. The cart and saved shoes stay in this
+   browser. Orders, stock and accounts live in Supabase.
    ========================================================== */
 
 document.documentElement.classList.add("js");
 
 const Kc = (() => {
   const S = window.STORE;
-  const P = window.PRODUCTS;
+  const P = window.PRODUCTS; // starter list from data.js; replaced by the live shoes from Supabase
+  const CFG = window.KC_CONFIG || {};
+  const sb = window.supabase && CFG.supabaseUrl ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey) : null;
+  const state = { offline: !sb, user: null, profile: null };
 
   /* ---------- storage ---------- */
   const mem = {};
@@ -39,19 +42,8 @@ const Kc = (() => {
   const getSize = () => store.get("kc_size", 43);
   const setSize = (n) => { store.set("kc_size", n); document.dispatchEvent(new CustomEvent("kc:size", { detail: n })); };
 
-  /* ---------- stock ---------- */
-  const stockOverrides = () => store.get("kc_stock", {});
-  function stockOf(p, size) {
-    const o = stockOverrides();
-    if (o[p.id] && o[p.id][size] !== undefined) return Number(o[p.id][size]);
-    return p.stock[size] || 0;
-  }
-  function setStock(id, size, qty) {
-    const o = stockOverrides();
-    o[id] = o[id] || {};
-    o[id][size] = Math.max(0, Math.floor(Number(qty) || 0));
-    store.set("kc_stock", o);
-  }
+  /* ---------- stock (kept on each product in Supabase) ---------- */
+  const stockOf = (p, size) => Number((p.stock || {})[size]) || 0;
   function stockState(p, size) {
     const left = stockOf(p, size);
     if (left <= 0) return { state: "out", left, label: "Sold out in size " + size };
@@ -107,39 +99,34 @@ const Kc = (() => {
   const cartCount = () => cart().reduce((n, l) => n + l.qty, 0);
   const cartSubtotal = () => cart().reduce((n, l) => n + product(l.id).price * l.qty, 0);
 
-  /* ---------- orders ---------- */
-  const orders = () => store.get("kc_orders", []);
-  const saveOrders = (o) => store.set("kc_orders", o);
-  function nextOrderId() {
-    const n = store.get("kc_seq", 0) + 1;
-    store.set("kc_seq", n);
-    return "KC-" + String(n).padStart(4, "0");
-  }
-  function placeOrder(data) {
-    const o = orders();
-    const order = Object.assign({ id: nextOrderId(), createdAt: Date.now(), status: "paid" }, data);
-    order.history = [{ status: "paid", at: Date.now() }];
-    o.unshift(order);
-    saveOrders(o);
-    order.items.forEach((it) => setStock(it.id, it.size, stockOf(product(it.id), it.size) - it.qty));
-    saveCart([]);
-    return order;
-  }
-  function setOrderStatus(id, status) {
-    const o = orders();
-    const order = o.find((x) => x.id === id);
-    if (!order) return;
-    order.status = status;
-    order.history = order.history || [];
-    order.history.push({ status, at: Date.now() });
-    saveOrders(o);
-  }
+  /* ---------- orders (stored in Supabase; see js/api.js) ---------- */
+  // Every stage an order can be in. "declined" and "cancelled" end the order.
   const STATUS = [
+    { key: "pending", label: "Request sent", note: "Waiting for the seller to approve your order." },
+    { key: "accepted", label: "Approved", note: "The seller approved your order. Send your payment to confirm it." },
+    { key: "confirming", label: "Confirming your payment", note: "We are checking that your transfer arrived." },
     { key: "paid", label: "Payment confirmed", note: "We received your payment." },
     { key: "packing", label: "Packing your pair", note: "The seller is getting your shoes ready." },
     { key: "shipped", label: "On the way", note: "Your order has left and is heading to you." },
     { key: "delivered", label: "Delivered", note: "Enjoy your new pair." }
   ];
+  const STATUS_LABEL = Object.assign({ declined: "Declined", cancelled: "Cancelled" }, ...STATUS.map((x) => ({ [x.key]: x.label })));
+
+  // Which delivery area a state belongs to (same rule the server uses).
+  function zoneFor(state) {
+    const z = S.deliveryZones;
+    return z.find((x) => Array.isArray(x.states) && x.states.includes(state)) || z.find((x) => x.states === "rest") || null;
+  }
+  const isBlocked = (state) => (S.blockedStates || []).includes(state);
+
+  // Orders this device sent, so tracking can open without asking for the phone again.
+  const mine = () => store.get("kc_mine", []);
+  function rememberOrder(id, phone) {
+    const m = mine().filter((x) => x.id !== id);
+    m.unshift({ id, phone });
+    store.set("kc_mine", m.slice(0, 20));
+  }
+  const phoneOf = (id) => (mine().find((x) => x.id === String(id).toUpperCase()) || {}).phone || "";
 
   /* ---------- product card ---------- */
   function cardHTML(p, size, delay = 0) {
@@ -191,6 +178,86 @@ const Kc = (() => {
     close: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
   };
 
+  const USER_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>';
+
+  /* ---------- live data: shoes, settings and who is signed in ---------- */
+  const fromRow = (r) => ({
+    id: r.id, name: r.name, category: r.category, type: r.type, price: r.price, isNew: r.is_new, tagline: r.tagline,
+    colors: r.colors || [], stock: r.stock || {}, about: r.about || [], features: r.features || [], specs: r.specs || {},
+    care: r.care || [], occasions: r.occasions || [], active: r.active, sort: r.sort
+  });
+
+  async function loadProducts() {
+    const { data, error } = await sb.from("products").select("*").eq("active", true).order("sort").order("created_at");
+    if (error) throw error;
+    P.length = 0;
+    data.map(fromRow).forEach((p) => P.push(p));
+  }
+  async function loadSettings() {
+    const { data, error } = await sb.from("settings").select("*").eq("id", 1).maybeSingle();
+    if (error || !data) return;
+    S.deliveryZones = data.delivery_zones;
+    S.blockedStates = data.blocked_states || [];
+    S.lowStockAt = data.low_stock_at;
+    S.returnsDays = data.returns_days;
+    S.paystackOn = !!data.paystack_on;
+    S.payFirst = data.pay_first !== false;
+    S.announcement = data.announcement_on ? data.announcement : "";
+  }
+  async function loadUser() {
+    const { data } = await sb.auth.getSession();
+    state.user = data && data.session ? data.session.user : null;
+    state.profile = null;
+    if (state.user) {
+      const r = await sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
+      state.profile = r.data || null;
+    }
+  }
+  const loaded = (async () => {
+    if (!sb) return;
+    try { await Promise.all([loadProducts(), loadSettings(), loadUser()]); state.offline = false; }
+    catch (e) { console.error(e); state.offline = true; }
+  })();
+
+  // Page scripts start here: after the page is ready and the live data has arrived.
+  function ready(fn) {
+    const run = () => loaded.then(() => { paintLive(); return fn(); });
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run); else run();
+  }
+  let painted = false;
+  function paintLive() {
+    if (painted) return; painted = true;
+    const a = document.querySelector("[data-account]");
+    if (a && state.user) {
+      const url = state.profile && state.profile.avatar_url;
+      a.innerHTML = url ? `<img class="avatar-s" src="${esc(url)}" alt="">` : USER_ICON;
+      a.setAttribute("aria-label", "My account");
+    }
+    if (S.announcement && !document.querySelector(".announce")) {
+      const d = document.createElement("div");
+      d.className = "announce"; d.setAttribute("role", "status"); d.textContent = S.announcement;
+      document.body.insertBefore(d, document.body.firstChild);
+    }
+    if (state.offline && sb && !document.querySelector(".offline-note")) {
+      const d = document.createElement("div");
+      d.className = "announce offline-note"; d.setAttribute("role", "status");
+      d.textContent = "We could not reach the store just now. You are seeing our saved catalog, and ordering is paused. Please try again in a moment.";
+      document.body.insertBefore(d, document.body.firstChild);
+    }
+  }
+
+  function whatsappButton() {
+    const c = S.contact;
+    if (!c.whatsapp || document.querySelector(".wa-fab")) return;
+    const a = document.createElement("a");
+    a.className = "wa-fab";
+    a.href = "https://wa.me/" + c.whatsapp + "?text=" + encodeURIComponent("Hello " + S.name + ", I have a question about your shoes.");
+    a.target = "_blank"; a.rel = "noopener";
+    a.setAttribute("aria-label", "Chat with us on WhatsApp");
+    a.innerHTML = '<svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path fill="#fff" d="M16 3.2A12.7 12.7 0 0 0 5.2 22.5L3.4 28.8l6.5-1.7A12.7 12.7 0 1 0 16 3.2zm0 2.3a10.4 10.4 0 1 1-5.3 19.4l-.4-.2-3.8 1 1-3.7-.3-.4A10.4 10.4 0 0 1 16 5.5zm-4 5.3c-.3 0-.7.1-1 .5-.4.4-1.3 1.2-1.3 3s1.3 3.6 1.5 3.8c.2.3 2.6 4.1 6.4 5.6 3.2 1.2 3.8.9 4.5.9.7-.1 2.2-.9 2.5-1.8.3-.9.3-1.6.2-1.8l-.7-.4-2.4-1.2c-.3-.1-.6-.2-.8.2l-1.1 1.4c-.2.2-.4.3-.7.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6.4-.6c.1-.2 0-.4 0-.6l-1.1-2.6c-.3-.7-.6-.6-.8-.6z"/></svg><span class="wa-tip">Chat with us</span>';
+    document.body.appendChild(a);
+  }
+
   function renderChrome() {
     const page = document.body.dataset.page || "";
     const h = $("#site-header");
@@ -209,6 +276,7 @@ const Kc = (() => {
         <div class="hdr-actions">
           <button class="icon-btn" data-search aria-label="Search">${ICON.search}</button>
           <a class="icon-btn has-badge" href="shop.html?saved=1" aria-label="Saved shoes">${ICON.heart}<span class="count" data-saved-count></span></a>
+          <a class="icon-btn" href="account.html" aria-label="My account" data-account>${USER_ICON}</a>
           <a class="icon-btn has-badge" href="cart.html" aria-label="Cart">${ICON.cart}<span class="count" data-cart-count></span></a>
         </div>
       </div></header>
@@ -221,6 +289,7 @@ const Kc = (() => {
           <a href="shop.html?cat=sneakers">Sneakers</a>
           <a href="shop.html?saved=1">Saved shoes</a>
           <a href="track.html">Track an order</a>
+          <a href="account.html">My account</a>
           <a href="info.html#delivery">Delivery and returns</a>
           <a href="info.html#size-guide">Size guide</a>
           <a href="info.html#about">About us</a>
@@ -253,7 +322,7 @@ const Kc = (() => {
             <div><h4>Store</h4><a href="info.html#about">About us</a><a href="info.html#contact">Contact</a><a href="admin.html">Seller dashboard</a>${bits.join("")}</div>
           </div>
         </div>
-        <div class="wrap ftr-base"><span class="logo">${esc(S.name.toUpperCase())}</span><span>Demo store. Name, colors, delivery fees and shoes are set in one file so any seller can use it.</span></div>
+        <div class="wrap ftr-base"><span class="logo">${esc(S.name.toUpperCase())}</span><span>© ${new Date().getFullYear()} ${esc(S.name)}. Made by <a class="credit" href="${c.whatsapp ? "https://wa.me/" + esc(c.whatsapp) : "#"}" target="_blank" rel="noopener">Ojo David Oluwadarasimi</a></span></div>
       </footer>`;
     }
     updateBadges();
@@ -422,6 +491,7 @@ const Kc = (() => {
 
   function init() {
     renderChrome();
+    whatsappButton();
     bindChrome();
     split();
     observe();
@@ -431,12 +501,31 @@ const Kc = (() => {
     document.body.classList.add("ready");
   }
 
+  /* A ready-to-send WhatsApp message built from the cart (or an order), so the owner gets every detail. */
+  function waOrderLink(o) {
+    o = o || {};
+    const items = o.items || cart().map((l) => { const { p } = lineInfo(l); return { name: p.name, color: l.color, size: l.size, qty: l.qty, price: p.price }; });
+    const sub = items.reduce((n, i) => n + i.price * i.qty, 0);
+    const t = [];
+    t.push("Hello " + S.name + ", I would like to order" + (o.id ? " (order " + o.id + ")" : "") + ":", "");
+    items.forEach((i, n) => t.push((n + 1) + ". " + i.name + ", " + i.color + ", size " + i.size + ", qty " + i.qty + " = " + money(i.price * i.qty)));
+    t.push("", "Subtotal: " + money(sub));
+    if (o.discount) t.push("Discount" + (o.code ? " (" + o.code + ")" : "") + ": -" + money(o.discount));
+    if (o.delivery != null) t.push("Delivery: " + money(o.delivery));
+    t.push("Total: " + money(o.total != null ? o.total : sub - (o.discount || 0) + (o.delivery || 0)));
+    const w = [o.name, o.phone, [o.street, o.city, o.state].filter(Boolean).join(", ")].filter(Boolean);
+    if (w.length) t.push("", "Name: " + (o.name || ""), "Phone: " + (o.phone || ""), "Deliver to: " + ([o.street, o.city, o.state].filter(Boolean).join(", ") || "not chosen yet"));
+    if (o.note) t.push("Note: " + o.note);
+    t.push("", "Is everything available? Please send me the payment details.");
+    return "https://wa.me/" + S.contact.whatsapp + "?text=" + encodeURIComponent(t.join("\n"));
+  }
+
   return {
-    S, P, store, $, $$, money, esc, param, product, reduced,
-    getSize, setSize, stockOf, setStock, stockState, anyStock, stockOverrides,
+    waOrderLink, S, P, store, $, $$, money, esc, param, product, reduced,
+    getSize, setSize, stockOf, stockState, anyStock,
     saved, toggleSaved,
     cart, saveCart, addToCart, setQty, removeLine, lineInfo, cartCount, cartSubtotal,
-    orders, saveOrders, placeOrder, setOrderStatus, STATUS,
+    STATUS, STATUS_LABEL, zoneFor, isBlocked, mine, rememberOrder, phoneOf, sb, state, fromRow, ready, loaded: () => loaded,
     cardHTML, sizeChipsHTML, toast, observe, split, countUp, flyToCart, updateBadges, init
   };
 })();

@@ -1,5 +1,5 @@
 /* Info page: fills in delivery fees, sizes and contact details from the settings file. */
-document.addEventListener("DOMContentLoaded", () => {
+Kc.ready(() => {
   const { $, S, money, esc } = Kc;
 
   $("#zones").innerHTML = S.deliveryZones.map((z) => `<tr><td><b>${esc(z.name)}</b></td><td>${money(z.fee)}</td><td>${esc(z.eta)}</td></tr>`).join("");
@@ -12,7 +12,5 @@ document.addEventListener("DOMContentLoaded", () => {
   if (c.email) rows.push(`<p><b>Email:</b> <a style="text-decoration:underline" href="mailto:${esc(c.email)}">${esc(c.email)}</a></p>`);
   if (c.address) rows.push(`<p><b>Address:</b> ${esc(c.address)}</p>`);
   if (c.hours) rows.push(`<p><b>Hours:</b> ${esc(c.hours)}</p>`);
-  $("#contact-list").innerHTML = rows.length > 1
-    ? rows.join("")
-    : `<p>Message us with your order number and we will help. ${c.hours ? "We reply " + esc(c.hours.toLowerCase()) + "." : ""}</p><div class="callout">This is a demo store, so no contact details are set yet. The seller adds a WhatsApp number, phone and email in <b>js/data.js</b> and they appear here and in the footer.</div>`;
+  $("#contact-list").innerHTML = rows.join("") || "<p>Message us with your order number and we will help.</p>";
 });

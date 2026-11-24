@@ -18,23 +18,31 @@ window.STORE = {
   lowStockAt: 3,
 
   // Delivery. The seller sets their own areas, fees and times.
+  // "states" lists which states belong to the area. "rest" means every
+  // state not listed in another area.
   deliveryZones: [
-    { name: "Lagos", fee: 3500, eta: "1 to 3 working days" },
-    { name: "Abuja (FCT)", fee: 5000, eta: "3 to 5 working days" },
-    { name: "Other states", fee: 6500, eta: "3 to 7 working days" }
+    { name: "Lagos", fee: 3500, eta: "1 to 3 working days", states: ["Lagos"] },
+    { name: "Abuja (FCT)", fee: 5000, eta: "3 to 5 working days", states: ["FCT (Abuja)"] },
+    { name: "Other states", fee: 6500, eta: "3 to 7 working days", states: "rest" }
   ],
+
+  // States you do not deliver to yet. Customers there are told before they send a request.
+  // Example: blockedStates: ["Borno", "Yobe"]
+  blockedStates: [],
 
   returnsDays: 7,
 
-  // Fill these in and they appear on the contact section and tracking page.
+  // These show in the footer, contact section, tracking page and the WhatsApp button.
   contact: {
-    whatsapp: "",   // for example "2348012345678"
-    phone: "",
-    email: "",
+    whatsapp: "2348168001035",   // international format, no plus sign
+    phone: "+234 816 800 1035",
+    email: "ojodavidoluwadarasimi100@gmail.com",
     address: "",
     hours: "Monday to Saturday, 9am to 6pm"
   }
 };
+
+window.STATES = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
 
 const IMG = (n) => "assets/img/" + n + ".jpg";
 

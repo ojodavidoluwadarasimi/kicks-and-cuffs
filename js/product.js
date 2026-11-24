@@ -1,5 +1,5 @@
 /* Product page: gallery, colors, sizes, add to cart and the full "about" details. */
-document.addEventListener("DOMContentLoaded", () => {
+Kc.ready(() => {
   const { $, $$, P, S, money, esc, param, product, getSize, setSize, stockOf, stockState, saved, toggleSaved,
           addToCart, cardHTML, observe, toast, flyToCart, split } = Kc;
 
@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="${isSaved ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
         </button>
       </div>
-      <p class="pay-hint">Pay by card, bank transfer or USSD at checkout.</p>
+      <p class="pay-hint">You pay by bank transfer after the seller approves your order.</p>
 
       <div class="opt">
         <div class="opt-head"><span>Good for</span></div>

@@ -1,5 +1,5 @@
 /* Cart page. */
-document.addEventListener("DOMContentLoaded", () => {
+Kc.ready(() => {
   const { $, cart, lineInfo, money, esc, stockOf, setQty, removeLine, cartSubtotal, observe, S } = Kc;
   const root = $("#cart-root");
 
@@ -38,7 +38,8 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="sum-row total"><span>Total</span><span>${money(sub)}</span></div>
         <a class="btn btn-accent btn-block pulse ${blocked ? "disabled" : ""}" href="checkout.html" style="margin-top:14px" ${blocked ? 'aria-disabled="true"' : ""}>Checkout</a>
         ${blocked ? '<p class="li-warn" style="margin-top:10px">Remove the item that is out of stock to continue.</p>' : ""}
-        <p class="pay-hint" style="text-align:center">Pay by card, bank transfer or USSD</p>
+        <a class="btn btn-block wa-order" id="wa-cart" href="${Kc.waOrderLink()}" target="_blank" rel="noopener" style="margin-top:10px">Order on WhatsApp</a>
+        <p class="pay-hint" style="text-align:center">Prefer to chat first? We receive your full cart on WhatsApp.</p>
       </aside>`;
     observe(root);
   }
