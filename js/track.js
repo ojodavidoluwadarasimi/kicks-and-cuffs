@@ -46,7 +46,7 @@ Kc.ready(() => {
     if (sig === shown) return;
     shown = sig;
     const ended = o.status === "declined" || o.status === "cancelled";
-    const idx = STATUS.findIndex((s) => s.key === o.status);
+    const idx = STATUS.findIndex((s) => s.key === (o.status === "pending" || o.status === "confirming" ? "accepted" : o.status));
     const at = {}; (o.history || []).forEach((h) => { at[h.status] = h.at; });
 
     const steps = STATUS.map((s, i) => {
@@ -59,21 +59,21 @@ Kc.ready(() => {
     }).join("");
 
     const heads = {
-      pending: [isNew ? "Your request is in." : "Waiting for the seller.", "Request sent"],
-      accepted: ["Approved. Time to pay.", "Approved"],
-      confirming: ["We are checking your payment.", "Payment sent"],
+      pending: [isNew ? "Your order is in. Pay to confirm it." : "Waiting for your payment.", "Order " + o.id],
+      accepted: [isNew ? "Your order is in. Pay to confirm it." : "Waiting for your payment.", "Order " + o.id],
+      confirming: ["Confirming your payment.", "Payment received by Paystack"],
       paid: ["Payment confirmed.", "Paid"],
       packing: ["Packing your pair.", "Order " + o.id],
       shipped: ["On the way.", "Order " + o.id],
       delivered: ["Delivered. Enjoy your pair.", "Order " + o.id],
-      declined: ["Not approved this time.", "Request declined"],
+      declined: ["This order was cancelled.", "Cancelled by the seller"],
       cancelled: ["Request cancelled.", "Cancelled"]
     };
     const [heading, eyebrow] = heads[o.status] || ["Your order", "Order " + o.id];
     const sub = {
-      pending: "The seller reviews each request and approves or declines it. This page updates by itself, so you can keep it open or come back later.",
-      accepted: "The seller approved your order. Pay below and we will start packing your pair.",
-      confirming: "Your payment is being confirmed. We will start packing as soon as it is.",
+      pending: "Your pair is held for you. Pay below and we start packing as soon as the payment goes through.",
+      accepted: "Your pair is held for you. Pay below and we start packing as soon as the payment goes through.",
+      confirming: "Your payment is being confirmed. This page updates by itself.",
       declined: "You have not been charged. You can pick another pair or another size.",
       cancelled: "You have not been charged, and the pair is back in stock."
     }[o.status] || "Keep this page. It updates as your pair moves.";
@@ -82,39 +82,14 @@ Kc.ready(() => {
     const canCancel = o.status === "pending" || o.status === "accepted";
     const THANKED = "kc_thanked";
 
-    const bank = o.bank || {};
-    const haveBank = bank.accountNumber && bank.bankName;
-    const wa = S.contact.whatsapp ? `https://wa.me/${esc(S.contact.whatsapp)}?text=${encodeURIComponent("Hello, I want to pay for order " + o.id + ". Please send me the account details.")}` : "";
-    const payFirstPanel = o.status === "pending" && S.paystackOn && S.payFirst ? `
-      <section class="pay-panel reveal">
-        <h2>Pay ${money(o.total)} now</h2>
-        <p class="muted" style="font-size:14px;margin-bottom:12px">Your pair is already held for you. Pay now and we start packing as soon as it goes through. No need to wait.</p>
-        <button class="btn btn-accent btn-block pulse" id="paynow" type="button">Pay ${money(o.total)} now</button>
-        <p class="muted" style="font-size:13px;margin-top:8px;text-align:center">Card, bank transfer or USSD. Confirmed automatically.</p>
-      </section>` : "";
-    const payPanel = payFirstPanel || o.status === "accepted" ? payFirstPanel || `
+    const canPay = o.status === "accepted" || o.status === "pending" || o.status === "confirming";
+    const wa = S.contact.whatsapp ? `https://wa.me/${esc(S.contact.whatsapp)}?text=${encodeURIComponent("Hello, I need help paying for order " + o.id + ".")}` : "";
+    const payPanel = canPay ? `
       <section class="pay-panel reveal">
         <h2>Pay ${money(o.total)}</h2>
-        ${S.paystackOn ? `<button class="btn btn-accent btn-block pulse" id="paynow" type="button">Pay ${money(o.total)} now</button>
-        <p class="muted" style="font-size:13px;margin:8px 0 18px;text-align:center">Card, bank transfer or USSD. Confirmed automatically.</p>
-        ${haveBank ? '<p class="muted" style="font-size:14px;text-align:center;margin-bottom:10px">Or pay by direct bank transfer</p>' : ""}` : ""}
-        ${haveBank ? `
-        <p class="muted" style="font-size:14px;margin-bottom:12px">Send the exact amount by bank transfer, then tap the button below.</p>
-        <dl class="bank">
-          <div><dt>Bank</dt><dd>${esc(bank.bankName)}</dd></div>
-          <div><dt>Account number</dt><dd><b id="acct">${esc(bank.accountNumber)}</b> <button class="btn-link" id="copy-acct" type="button">Copy</button></dd></div>
-          <div><dt>Account name</dt><dd>${esc(bank.accountName)}</dd></div>
-          <div><dt>Amount</dt><dd><b>${money(o.total)}</b></dd></div>
-          <div><dt>Narration</dt><dd>${esc(o.id)}</dd></div>
-        </dl>
-        ${bank.instructions ? `<p class="muted" style="font-size:14px">${esc(bank.instructions)}</p>` : ""}
-        <div class="field" style="margin-top:12px"><label for="ref">Transfer reference or sender name <span class="muted">(optional, helps us find it faster)</span></label><input class="inp" id="ref" maxlength="60" autocomplete="off"></div>
-        <button class="btn btn-accent btn-block pulse" id="sent" style="margin-top:12px">I have sent ${money(o.total)}</button>`
-        : `<p class="muted" style="font-size:15px">The seller will share the payment details with you. ${wa ? "Message them on WhatsApp and quote your order number." : ""}</p>${wa ? `<a class="btn btn-accent" href="${wa}" target="_blank" rel="noopener">Get payment details</a>` : ""}`}
-      </section>` : o.status === "confirming" ? `
-      <section class="pay-panel reveal">
-        <h2>We are checking your payment</h2>
-        <p class="muted" style="font-size:15px">Thank you. The seller is confirming your transfer${o.payment && o.payment.reference ? " (reference " + esc(o.payment.reference) + ")" : ""}. This page updates by itself the moment it is confirmed.</p>
+        <button class="btn btn-accent btn-block pulse" id="paynow" type="button">Pay ${money(o.total)} with Paystack</button>
+        <p class="muted" style="font-size:13px;margin-top:10px;text-align:center">Secure payment by card, bank transfer or USSD. Your order is confirmed automatically the moment it goes through. Your pair is held for you for 6 hours.</p>
+        ${wa ? `<p style="text-align:center;margin-top:8px"><a class="btn-link" href="${wa}" target="_blank" rel="noopener" style="text-decoration:underline;font-size:14px">Need help paying? Message us</a></p>` : ""}
       </section>` : "";
 
     const note = o.status === "declined" && o.declineReason ? `<div class="notice"><b>Message from the seller</b><p>${esc(o.declineReason)}</p></div>` : "";
@@ -153,20 +128,11 @@ Kc.ready(() => {
   }
 
   document.addEventListener("click", async (e) => {
-    if (e.target.closest("#copy-acct")) {
-      const t = $("#acct").textContent;
-      try { await navigator.clipboard.writeText(t); toast("Account number copied", "ok"); } catch (err) { toast("Account number: " + t); }
-    }
     if (e.target.closest("#paynow")) {
       const btn = e.target.closest("#paynow"); btn.disabled = true; btn.textContent = "Opening secure payment...";
       try { const r = await Api.payOnline(currentId, phone); location.href = r.url; }
       catch (err) { btn.disabled = false; btn.textContent = "Try again"; toast(err.message, "bad"); }
       return;
-    }
-    if (e.target.closest("#sent")) {
-      const btn = e.target.closest("#sent"); btn.disabled = true;
-      try { const o = await Api.submitPayment(currentId, phone, ($("#ref") || {}).value || ""); shown = null; draw(await Api.lookup(currentId, phone)); toast("Thank you. We are confirming your payment.", "ok"); }
-      catch (err) { btn.disabled = false; toast(err.message, "bad"); }
     }
     if (e.target.closest("#cancel-req")) {
       if (!confirm("Cancel this request?")) return;

@@ -45,14 +45,14 @@ Kc.ready(() => {
   }
 
   /* ======================= shell ======================= */
-  const pendingN = () => byStatus("pending").length;
+  const pendingN = () => byStatus("paid").length;
   function shell() {
     const n = pendingN();
     app.innerHTML = `
       <div class="page-head ad-head"><h1 data-split>Seller dashboard</h1><button class="btn" id="logout">Log out</button></div>
       <div class="stats" id="stats"></div>
       <div class="tabs" role="tablist">
-        ${[["requests", "Requests"], ["orders", "All orders"], ["products", "Products"], ["insights", "Insights"], ["codes", "Discounts"], ["customers", "Customers"], ["settings", "Settings"]]
+        ${[["requests", "To do"], ["orders", "All orders"], ["products", "Products"], ["insights", "Insights"], ["codes", "Discounts"], ["customers", "Customers"], ["settings", "Settings"]]
           .map(([k, l]) => `<button class="chip pill" role="tab" data-tab="${k}">${l}${k === "requests" && n ? ` <span class="badge-n">${n}</span>` : ""}</button>`).join("")}
       </div>
       <section class="panel" id="panel"></section>`;
@@ -63,8 +63,8 @@ Kc.ready(() => {
   function stats() {
     const revenue = orders.filter((x) => PAID.includes(x.status)).reduce((n, x) => n + x.total, 0);
     const box = (label, n, m) => `<div class="stat"><small>${label}</small><b data-count="${n}"${m ? ' data-money="1"' : ""}>0</b></div>`;
-    $("#stats").innerHTML = box("New requests", pendingN()) + box("Payments to confirm", byStatus("confirming").length) +
-      box("To pack or send", byStatus("paid").length + byStatus("packing").length) + box("Paid in total", revenue, true);
+    $("#stats").innerHTML = box("Ready to pack", byStatus("paid").length) + box("Awaiting payment", byStatus("pending").length + byStatus("accepted").length + byStatus("confirming").length) +
+      box("On the way", byStatus("packing").length + byStatus("shipped").length) + box("Paid in total", revenue, true);
     countUp($("#stats"));
   }
   function panel() {
@@ -76,14 +76,15 @@ Kc.ready(() => {
   function card(o) {
     const wa = `https://wa.me/${intl(o.customer.phone)}?text=${encodeURIComponent("Hello " + o.customer.name.split(" ")[0] + ", this is " + S.name + " about your order " + o.id + ".")}`;
     let actions = "";
-    if (o.status === "pending") actions = `<div class="req-actions"><button class="btn btn-accent" data-act="accept" data-id="${esc(o.id)}">Accept</button><button class="btn" data-decline-open="${esc(o.id)}">Decline</button></div>`;
-    if (o.status === "confirming") actions = `<div class="req-actions"><span class="pillx packing">Customer says they paid${o.payment && o.payment.reference ? ": " + esc(o.payment.reference) : ""}</span></div>
-      <div class="req-actions"><button class="btn btn-accent" data-act="confirm_payment" data-id="${esc(o.id)}">Money received</button><button class="btn" data-act="reject_payment" data-id="${esc(o.id)}">Not received</button></div>`;
-    if (o.status === "accepted") actions = `<div class="req-actions"><span class="pillx packing">Waiting for payment</span><button class="btn-link" data-act="confirm_payment" data-id="${esc(o.id)}">Mark as paid</button><button class="btn-link" data-decline-open="${esc(o.id)}">Decline instead</button></div>`;
+    const slip = `<button class="btn-link" data-print="${esc(o.id)}">Print packing slip</button>`;
+    if (o.status === "paid") actions = `<div class="req-actions"><button class="btn btn-accent" data-act="packing" data-id="${esc(o.id)}">Start packing</button>${slip}</div>`;
+    if (o.status === "packing") actions = `<div class="req-actions"><button class="btn btn-accent" data-act="shipped" data-id="${esc(o.id)}">Mark as shipped</button>${slip}</div>`;
+    if (o.status === "shipped") actions = `<div class="req-actions"><button class="btn btn-accent" data-act="delivered" data-id="${esc(o.id)}">Mark as delivered</button>${slip}</div>`;
+    if (["pending", "accepted", "confirming"].includes(o.status)) actions = `<div class="req-actions"><span class="pillx packing">Waiting for the customer to pay</span><button class="btn-link" data-act="confirm_payment" data-id="${esc(o.id)}">Mark as paid (paid outside the site)</button><button class="btn-link" data-decline-open="${esc(o.id)}">Cancel order</button></div>`;
     const why = declining === o.id ? `
-      <div class="decline-box"><label for="why-${esc(o.id)}">Why are you declining? The customer will see this.</label>
+      <div class="decline-box"><label for="why-${esc(o.id)}">Why are you cancelling? The customer will see this.</label>
         <input class="inp" id="why-${esc(o.id)}" maxlength="200" placeholder="For example: that size just sold out">
-        <div class="req-actions"><button class="btn" data-decline="${esc(o.id)}">Send decline</button><button class="btn-link" data-decline-cancel>Back</button></div></div>` : "";
+        <div class="req-actions"><button class="btn" data-decline="${esc(o.id)}">Cancel the order</button><button class="btn-link" data-decline-cancel>Back</button></div></div>` : "";
     return `<article class="req">
       <header><b>${esc(o.id)}</b><span class="muted">${ago(o.createdAt)}</span></header>
       <div class="req-who"><b>${esc(o.customer.name)}</b><a href="tel:${esc(o.customer.phone)}">${esc(o.customer.phone)}</a> · <a href="${wa}" target="_blank" rel="noopener">WhatsApp</a> · <a href="mailto:${esc(o.customer.email)}">${esc(o.customer.email)}</a></div>
@@ -94,10 +95,11 @@ Kc.ready(() => {
       <div class="req-total"><span>Total with delivery</span><b>${money(o.total)}</b></div>${actions}${why}</article>`;
   }
   function requestsTab(el) {
-    const p = byStatus("pending"), c = byStatus("confirming"), a = byStatus("accepted");
+    const waiting = orders.filter((x) => ["pending", "accepted", "confirming"].includes(x.status));
+    const lists = [["Paid, ready to pack", byStatus("paid")], ["Packing", byStatus("packing")], ["On the way", byStatus("shipped")], ["Waiting for payment", waiting]];
     const sec = (title, list) => (list.length ? `<h2 class="sub-h">${title} (${list.length})</h2>` + list.map(card).join("") : "");
-    el.innerHTML = (p.length + c.length + a.length === 0 ? '<div class="empty" style="padding:28px 0"><p>Nothing needs you right now. New requests show up here by themselves.</p></div>' : "") +
-      sec("Waiting for your decision", p) + sec("Payments to confirm", c) + sec("Approved, waiting for payment", a);
+    const any = lists.some(([, l]) => l.length);
+    el.innerHTML = (any ? "" : '<div class="empty" style="padding:28px 0"><p>Nothing needs you right now. Paid orders show up here by themselves, ready to pack.</p></div>') + lists.map(([t, l]) => sec(t, l)).join("");
   }
 
   /* ======================= orders ======================= */
@@ -275,7 +277,7 @@ Kc.ready(() => {
     el.innerHTML = `
       <div class="ins">
         <div class="stat"><small>Average order</small><b>${paid.length ? money(Math.round(revenue / paid.length)) : "None yet"}</b></div>
-        <div class="stat"><small>Requests you approved</small><b>${decided.length ? Math.round((approved / decided.length) * 100) + "%" : "None yet"}</b></div>
+        <div class="stat"><small>Orders that got paid</small><b>${orders.length ? Math.round((paid.length / orders.length) * 100) + "%" : "None yet"}</b></div>
         <div class="stat"><small>Paid orders</small><b>${paid.length}</b></div>
       </div>
       <h2 class="sub-h">Paid sales, last 14 days</h2>
@@ -318,21 +320,9 @@ Kc.ready(() => {
 
   /* ======================= settings ======================= */
   function settingsTab(el) {
-    if (!bank || !settings) { el.innerHTML = '<p class="muted">Loading...</p>'; return; }
+    if (!settings) { el.innerHTML = '<p class="muted">Loading...</p>'; return; }
     const blocked = new Set(settings.blocked_states || []);
     el.innerHTML = `
-      <form id="bank-form" class="look" style="max-width:520px" novalidate><h2 class="sub-h" style="margin:0">Where customers send money</h2>
-        <p class="muted" style="font-size:14px">Customers see these details after you approve their order. Use the account you want payments to reach.</p>
-        <div class="field"><label for="b-bank">Bank</label><input class="inp" id="b-bank" name="bank_name" maxlength="80" value="${esc(bank.bank_name)}"></div>
-        <div class="field"><label for="b-num">Account number</label><input class="inp" id="b-num" name="account_number" inputmode="numeric" maxlength="20" value="${esc(bank.account_number)}"></div>
-        <div class="field"><label for="b-name">Account name</label><input class="inp" id="b-name" name="account_name" maxlength="80" value="${esc(bank.account_name)}"></div>
-        <div class="field"><label for="b-ins">Extra instructions <span class="muted">(optional)</span></label><input class="inp" id="b-ins" name="instructions" maxlength="300" value="${esc(bank.instructions)}"></div>
-        <button class="btn btn-accent" type="submit">Save bank details</button></form>
-      <form id="ps-form" class="look" style="max-width:520px;margin-top:30px" novalidate><h2 class="sub-h" style="margin:0">Online payment (Paystack)</h2>
-        <p class="muted" style="font-size:14px">When on, customers see a "Pay now" button with card, transfer and USSD, and orders turn to paid by themselves. Turn it on only after your Paystack keys are added. Bank transfer stays as a backup.</p>
-        <label class="chk"><input type="checkbox" name="on" ${settings.paystack_on ? "checked" : ""}> Accept online payments</label>
-        <label class="chk"><input type="checkbox" name="first" ${settings.pay_first !== false ? "checked" : ""}> Let customers pay straight away, without waiting for my approval</label>
-        <button class="btn btn-accent" type="submit">Save</button></form>
       <form id="ann-form" class="look" style="max-width:520px;margin-top:30px" novalidate><h2 class="sub-h" style="margin:0">Announcement bar</h2>
         <p class="muted" style="font-size:14px">A line at the top of every page, for news like "Closed on Sunday".</p>
         <div class="field"><label for="a-text">Message</label><input class="inp" id="a-text" name="announcement" maxlength="200" value="${esc(settings.announcement)}"></div>
@@ -352,7 +342,7 @@ Kc.ready(() => {
 
   /* ======================= data and events ======================= */
   async function loadAll() {
-    const [o, p, b, s, c] = await Promise.all([Api.orders(), Api.allProducts(), Api.bank(), Api.loadSettingsRow(), Api.codes()]);
+    const [o, p, b, s, c] = await Promise.all([Api.orders(), Api.allProducts(), Promise.resolve(null), Api.loadSettingsRow(), Api.codes()]);
     orders = o; products = p; bank = b; settings = s; codes = c;
   }
   async function refresh(light) {
@@ -361,11 +351,11 @@ Kc.ready(() => {
       if (!light) products = await Api.allProducts();
     } catch (err) { if (err.code === "forbidden" || /log in/i.test(err.message)) return loginView("Your session ended. Please log in again."); return; }
     const n = pendingN();
-    if (lastPending !== null && n > lastPending) toast("New order request", "ok");
+    if (lastPending !== null && n > lastPending) toast("New paid order", "ok");
     lastPending = n;
     document.title = (n ? "(" + n + ") " : "") + "Seller dashboard | " + S.name;
     stats();
-    const b = $('[data-tab="requests"]'); if (b) b.innerHTML = "Requests" + (n ? ` <span class="badge-n">${n}</span>` : "");
+    const b = $('[data-tab="requests"]'); if (b) b.innerHTML = "To do" + (n ? ` <span class="badge-n">${n}</span>` : "");
     const busy = declining || editing || (document.activeElement && document.activeElement.matches("input, select, textarea"));
     if (!busy && (tab === "requests" || tab === "orders" || tab === "insights" || tab === "customers")) panel();
   }
@@ -382,7 +372,7 @@ Kc.ready(() => {
     if ((b = t.closest("[data-tab]"))) { tab = b.dataset.tab; editing = false; paintTabs(); panel(); return; }
     if ((b = t.closest("[data-open]"))) { open = open === b.dataset.open ? null : b.dataset.open; panel(); return; }
     if ((b = t.closest("[data-act]"))) {
-      const msgs = { accept: "Accepted. The customer can now pay.", confirm_payment: "Payment confirmed. Time to pack.", reject_payment: "Marked as not received." };
+      const msgs = { accept: "Accepted. The customer can now pay.", confirm_payment: "Payment confirmed. Time to pack.", reject_payment: "Marked as not received.", packing: "Packing started.", shipped: "Marked as shipped.", delivered: "Marked as delivered." };
       b.disabled = true; act(() => Api.decide(b.dataset.id, b.dataset.act), msgs[b.dataset.act]); return;
     }
     if ((b = t.closest("[data-decline-open]"))) { declining = b.dataset.declineOpen; panel(); const w = $("#why-" + declining); if (w) w.focus(); return; }
@@ -441,9 +431,7 @@ Kc.ready(() => {
       return;
     }
     try {
-      if (f.id === "bank-form") { bank = await Api.saveBank({ bank_name: f.bank_name.value.trim(), account_number: f.account_number.value.trim(), account_name: f.account_name.value.trim(), instructions: f.instructions.value.trim() }); toast("Bank details saved", "ok"); }
-      else if (f.id === "ps-form") { settings = await Api.saveSettings({ paystack_on: f.on.checked, pay_first: f.first.checked }); toast(settings.paystack_on ? "Online payment is on" : "Online payment is off", "ok"); }
-      else if (f.id === "ann-form") { settings = await Api.saveSettings({ announcement: f.announcement.value.trim(), announcement_on: f.on.checked && !!f.announcement.value.trim() }); toast("Saved", "ok"); }
+      if (f.id === "ann-form") { settings = await Api.saveSettings({ announcement: f.announcement.value.trim(), announcement_on: f.on.checked && !!f.announcement.value.trim() }); toast("Saved", "ok"); }
       else if (f.id === "ship-form") {
         const zones = settings.delivery_zones.map((z, i) => Object.assign({}, z, { fee: Math.max(0, Math.floor(Number($("[data-zf='" + i + "']").value) || 0)), eta: $("[data-ze='" + i + "']").value.trim() || z.eta }));
         settings = await Api.saveSettings({ delivery_zones: zones, blocked_states: $$("[data-bs]:checked").map((c) => c.dataset.bs), low_stock_at: Math.max(0, Math.floor(Number(f.low.value) || 0)), returns_days: Math.max(0, Math.floor(Number(f.ret.value) || 0)) });

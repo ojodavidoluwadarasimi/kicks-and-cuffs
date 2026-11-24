@@ -57,19 +57,20 @@ Kc.ready(() => {
     const pr = Kc.state.profile || {}, us = Kc.state.user;
     document.title = "My account | " + S.name;
     root.innerHTML = `
-      <div class="page-head ad-head"><h1 data-split>My account</h1><button class="btn" id="out">Log out</button></div>
-      <section class="look prof">
+      <div class="acct-head"><h1 data-split>My account</h1><button class="btn-link" id="out" type="button">Log out</button></div>
+      <section class="prof-card">
         <div class="prof-top">
           <div class="prof-av" id="av">${pr.avatar_url ? `<img src="${esc(pr.avatar_url)}" alt="Your photo">` : `<span>${initial(pr.full_name || us.email)}</span>`}</div>
-          <div><label class="btn" for="photo">Change photo</label><input id="photo" type="file" accept="image/jpeg,image/png,image/webp" hidden><p class="muted" style="font-size:13px;margin-top:6px">${esc(us.email)}</p></div>
+          <div class="prof-id"><b>${esc(pr.full_name || "Your name")}</b><span>${esc(us.email)}</span>
+            <label class="prof-photo" for="photo">Change photo</label><input id="photo" type="file" accept="image/jpeg,image/png,image/webp" hidden></div>
         </div>
         <form id="pf" novalidate>
           <div class="field"><label for="pn">Full name</label><input class="inp" id="pn" maxlength="80" value="${esc(pr.full_name || "")}"></div>
           <div class="field"><label for="pp">Phone number</label><input class="inp" id="pp" type="tel" maxlength="20" value="${esc(pr.phone || "")}" placeholder="0801 234 5678"></div>
-          <p class="li-warn" id="pf-msg" role="alert"></p><button class="btn btn-accent" type="submit">Save profile</button>
+          <p class="li-warn" id="pf-msg" role="alert"></p><button class="btn btn-accent btn-block" type="submit">Save changes</button>
         </form>
       </section>
-      <h2 class="sub-h" style="margin-top:34px">My orders</h2><div id="orders"><p class="muted">Loading...</p></div>`;
+      <h2 class="sub-h" style="margin-top:36px">My orders</h2><div id="orders"><p class="muted">Loading...</p></div>`;
     Kc.split(); $$("[data-split]", root).forEach((e) => requestAnimationFrame(() => e.classList.add("in")));
     $("#out").onclick = async () => { await Api.signOut(); mode = "login"; Kc.paintLive && Kc.paintLive(); authView("You are logged out.", true); };
     $("#photo").onchange = async (e) => {

@@ -102,15 +102,14 @@ const Kc = (() => {
   /* ---------- orders (stored in Supabase; see js/api.js) ---------- */
   // Every stage an order can be in. "declined" and "cancelled" end the order.
   const STATUS = [
-    { key: "pending", label: "Request sent", note: "Waiting for the seller to approve your order." },
-    { key: "accepted", label: "Approved", note: "The seller approved your order. Send your payment to confirm it." },
-    { key: "confirming", label: "Confirming your payment", note: "We are checking that your transfer arrived." },
+    { key: "accepted", label: "Order placed", note: "Your pair is held for you. Pay to confirm it." },
     { key: "paid", label: "Payment confirmed", note: "We received your payment." },
     { key: "packing", label: "Packing your pair", note: "The seller is getting your shoes ready." },
     { key: "shipped", label: "On the way", note: "Your order has left and is heading to you." },
     { key: "delivered", label: "Delivered", note: "Enjoy your new pair." }
   ];
-  const STATUS_LABEL = Object.assign({ declined: "Declined", cancelled: "Cancelled" }, ...STATUS.map((x) => ({ [x.key]: x.label })));
+  const STATUS_LABEL = Object.assign({ pending: "Awaiting payment", accepted: "Awaiting payment", confirming: "Confirming payment", declined: "Cancelled by seller", cancelled: "Cancelled" },
+    { paid: "Paid", packing: "Packing", shipped: "On the way", delivered: "Delivered" });
 
   // Which delivery area a state belongs to (same rule the server uses).
   function zoneFor(state) {
@@ -215,8 +214,10 @@ const Kc = (() => {
   }
   const loaded = (async () => {
     if (!sb) return;
-    try { await Promise.all([loadProducts(), loadSettings(), loadUser()]); state.offline = false; }
-    catch (e) { console.error(e); state.offline = true; }
+    // only a failed shoe list means the store is really unreachable; settings or sign-in problems must not pause ordering
+    const r = await Promise.allSettled([loadProducts(), loadSettings(), loadUser()]);
+    r.forEach((x) => { if (x.status === "rejected") console.error(x.reason); });
+    state.offline = r[0].status === "rejected";
   })();
 
   // Page scripts start here: after the page is ready and the live data has arrived.

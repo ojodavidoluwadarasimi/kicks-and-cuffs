@@ -156,7 +156,7 @@ const Api = (() => {
   const saveBank = (b) => run(need().from("bank_details").update(b).eq("id", 1).select().single());
 
   return {
-    createOrder, lookup, submitPayment, cancel, myOrders, checkCode, codes, saveCode, deleteCode,
+    payOnline, verifyPayment, createOrder, lookup, submitPayment, cancel, myOrders, checkCode, codes, saveCode, deleteCode,
     signUp, signIn, signOut, resetPassword, updatePassword, updateProfile, uploadAvatar, refreshProfile,
     isSeller, sellerSignIn, loginEmail, orders, decide, allProducts, saveProduct, deleteProduct, setActive, saveStock,
     uploadProductImage, loadSettingsRow, saveSettings, bank, saveBank, fail

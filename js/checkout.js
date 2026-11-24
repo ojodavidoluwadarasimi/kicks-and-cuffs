@@ -26,9 +26,9 @@ Kc.ready(() => {
       ${promo ? `<div class="sum-row"><span class="muted">Code ${esc(promo.code)} (${promo.percent}% off)</span><b>-${money(disc())}</b></div>` : ""}
       <div class="sum-row"><span class="muted">Delivery</span><b>${zone() ? money(fee()) : "Choose your state"}</b></div>
       <div class="sum-row total"><span>Total</span><span>${money(sub - disc() + fee())}</span></div>
-      <button class="btn btn-accent btn-block pulse" id="send" style="margin-top:14px" ${busy ? "disabled" : ""}>${busy ? "Sending..." : "Send order request"}</button>
+      <button class="btn btn-accent btn-block pulse" id="send" style="margin-top:14px" ${busy ? "disabled" : ""}>${busy ? "Placing your order..." : "Place order and pay"}</button>
       <a class="btn btn-block wa-order" id="wa-co" href="${waHref()}" target="_blank" rel="noopener" style="margin-top:10px">Message the seller on WhatsApp</a>
-      <p class="pay-hint" style="text-align:center">${S.paystackOn && S.payFirst ? "You can pay on the next page. Your pair is held for you." : "You pay only after the seller approves."}</p>`;
+      <p class="pay-hint" style="text-align:center">You pay on the next page. Your pair is held for you for 6 hours.</p>`;
   }
 
   stateSel.addEventListener("change", () => {
@@ -94,7 +94,7 @@ Kc.ready(() => {
       summary(false);
       if (err.field && !["cart", "code"].includes(err.field)) showErrors({ [err.field]: err.message });
       if (err.field === "code") { promo = null; summary(false); }
-      toast(err.message || "We could not send your request.", "bad");
+      toast(err.message || "We could not place your order.", "bad");
       if (err.field === "cart") setTimeout(() => (location.href = "cart.html"), 1800);
     }
   });
