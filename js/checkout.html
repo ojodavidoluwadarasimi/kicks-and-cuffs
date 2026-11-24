@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout | Kicks &amp; Cuffs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="checkout">
+<div id="site-header"></div>
+
+<main class="wrap">
+  <div class="page-head"><h1 data-split>Checkout</h1></div>
+  <div class="two">
+    <form id="co-form" novalidate>
+      <fieldset class="fs" style="margin-top:8px">
+        <legend>Your details</legend>
+        <div class="fields">
+          <div class="field"><label for="name">Full name</label><input id="name" name="name" autocomplete="name" required><div class="err" data-err="name"></div></div>
+          <div class="two-col">
+            <div class="field"><label for="phone">Phone number</label><input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="0801 234 5678" required><div class="err" data-err="phone"></div></div>
+            <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required><div class="err" data-err="email"></div></div>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>Where should we deliver?</legend>
+        <div class="fields">
+          <div class="field"><label for="state">State</label><select id="state" name="state" required></select><div class="err" data-err="state"></div></div>
+          <div class="callout-s" id="zone-box" hidden></div>
+          <div class="two-col">
+            <div class="field"><label for="city">City or area</label><input id="city" name="city" autocomplete="address-level2" placeholder="For example Ikeja" required><div class="err" data-err="city"></div></div>
+            <div class="field"><label for="address">Street address</label><input id="address" name="address" autocomplete="street-address" required><div class="err" data-err="address"></div></div>
+          </div>
+          <div class="field"><label for="note">Anything the seller should know? <span class="muted">(optional)</span></label><input id="note" name="note" maxlength="300" placeholder="Landmark, a preferred time, a question about fit"></div>
+          <div class="field"><label for="code">Discount code <span class="muted">(optional)</span></label><div class="code-row"><input id="code" name="code" maxlength="20" autocapitalize="characters" autocomplete="off" placeholder="Enter code"><button class="btn" type="button" id="apply-code">Apply</button></div><p id="code-msg" class="ok-msg" role="status"></p></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>What happens next</legend>
+        <ol class="next-steps">
+          <li><b>You send this request.</b> No payment yet.</li>
+          <li><b>The seller reviews it</b> and approves or declines.</li>
+          <li><b>If approved, you pay</b> on your tracking page and we pack your pair.</li>
+        </ol>
+      </fieldset>
+    </form>
+
+    <aside class="summary" id="co-summary"></aside>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="js/data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/core.js"></script>
+<script src="js/api.js"></script>
+<script src="js/checkout.js"></script>
+</body>
+</html>
